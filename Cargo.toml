@@ -4,19 +4,19 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-embassy-executor = { git = "https://github.com/embassy-rs/embassy", features = ["arch-cortex-m", "executor-thread", "defmt"] }
-embassy-time = { git = "https://github.com/embassy-rs/embassy", features = ["defmt", "defmt-timestamp-uptime"] }
-embassy-rp = { git = "https://github.com/embassy-rs/embassy", features = ["defmt", "unstable-pac", "time-driver", "critical-section-impl", "rp235xa", "binary-info"] }
-embassy-net = { git = "https://github.com/embassy-rs/embassy", features = ["defmt", "tcp", "udp", "dns", "dhcpv4"] }
-embassy-futures = { git = "https://github.com/embassy-rs/embassy" }
-embassy-sync = { git = "https://github.com/embassy-rs/embassy" }
-embassy-embedded-hal = { git = "https://github.com/embassy-rs/embassy" }
-embassy-usb = { git = "https://github.com/embassy-rs/embassy", features = ["defmt"] }
-embassy-usb-logger = { git = "https://github.com/embassy-rs/embassy" }
-cyw43 = { version = "0.6.0", git = "https://github.com/embassy-rs/embassy", features = ["defmt", "firmware-logs"] }
-cyw43-pio = { version = "0.9.0", git = "https://github.com/embassy-rs/embassy", features = ["defmt"] }
+embassy-executor = { git = "https://github.com/embassy-rs/embassy", rev = "1f945bcebd3b0018b3b5541ede767583df3545d8", features = ["arch-cortex-m", "executor-thread", "defmt"] }
+embassy-time = { git = "https://github.com/embassy-rs/embassy", rev = "1f945bcebd3b0018b3b5541ede767583df3545d8", features = ["defmt", "defmt-timestamp-uptime"] }
+embassy-rp = { git = "https://github.com/embassy-rs/embassy", rev = "1f945bcebd3b0018b3b5541ede767583df3545d8", features = ["defmt", "unstable-pac", "time-driver", "critical-section-impl", "rp235xa", "binary-info"] }
+embassy-net = { git = "https://github.com/embassy-rs/embassy", rev = "1f945bcebd3b0018b3b5541ede767583df3545d8", features = ["defmt", "tcp", "udp", "dns", "dhcpv4"] }
+embassy-futures = { git = "https://github.com/embassy-rs/embassy", rev = "1f945bcebd3b0018b3b5541ede767583df3545d8" }
+embassy-sync = { git = "https://github.com/embassy-rs/embassy", rev = "1f945bcebd3b0018b3b5541ede767583df3545d8" }
+embassy-embedded-hal = { git = "https://github.com/embassy-rs/embassy", rev = "1f945bcebd3b0018b3b5541ede767583df3545d8" }
+embassy-usb = { git = "https://github.com/embassy-rs/embassy", rev = "1f945bcebd3b0018b3b5541ede767583df3545d8", features = ["defmt"] }
+embassy-usb-logger = { git = "https://github.com/embassy-rs/embassy", rev = "1f945bcebd3b0018b3b5541ede767583df3545d8" }
+cyw43 = { git = "https://github.com/embassy-rs/embassy", rev = "1f945bcebd3b0018b3b5541ede767583df3545d8", features = ["defmt", "firmware-logs"] }
+cyw43-pio = { git = "https://github.com/embassy-rs/embassy", rev = "1f945bcebd3b0018b3b5541ede767583df3545d8", features = ["defmt"] }
 log = "0.4"
-reqwless = { git = "https://github.com/drogue-iot/reqwless", rev = "68f703dfc16e6f7f964b7238c922c0d433118872", features = ["defmt", "embedded-tls"] }
+reqwless = { git = "https://github.com/drogue-iot/reqwless", rev = "0b529c4fa0d8f568427a493fe53dfc384f7640b1", features = ["defmt", "embedded-tls"] }
 serde = { version = "1.0.203", default-features = false, features = ["derive"] }
 serde-json-core = "0.5.1"
 
@@ -41,8 +41,7 @@ embedded-hal-async = "1.0"
 bme280-rs = "0.2"
 
 # Utilities
-heapless = "0.8"
-cyw43-firmware = { version = "0.1.0", features = ["wifi"]}
+heapless = { version = "0.8", features = ["serde"] }
 
 [profile.release]
 debug = 2

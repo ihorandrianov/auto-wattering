@@ -9,14 +9,21 @@ mod tasks;
 mod types;
 
 use cyw43::JoinOptions;
-use cyw43_pio::{PioSpi, RM2_CLOCK_DIVIDER};
+use cyw43_pio::PioSpi;
+use fixed::FixedU32;
+use fixed::types::extra::U8;
+
+// Custom clock divider for Pico 2 W - 0x0300
+const PICO2W_CLOCK_DIVIDER: FixedU32<U8> = FixedU32::from_bits(0x0300);
+
 use embassy_executor::Spawner;
 use embassy_net::{Config, StackResources};
 use embassy_rp::bind_interrupts;
+use embassy_rp::block::ImageDef;
 use embassy_rp::clocks::RoscRng;
 use embassy_rp::gpio::{Level, Output};
 use embassy_rp::i2c::{self, Config as I2cConfig, InterruptHandler as I2cInterruptHandler};
-use embassy_rp::peripherals::{DMA_CH0, I2C1, PIO0, USB};
+use embassy_rp::peripherals::{I2C1, PIO0, USB};
 use embassy_rp::pio::{InterruptHandler as PioInterruptHandler, Pio};
 use embassy_rp::usb::{Driver, InterruptHandler as UsbInterruptHandler};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
@@ -28,6 +35,10 @@ use {defmt_rtt as _, panic_probe as _};
 
 use config::{WIFI_NETWORK, WIFI_PASSWORD};
 use tasks::{display, logger, network, sensor};
+
+#[unsafe(link_section = ".start_block")]
+#[used]
+pub static IMAGE_DEF: ImageDef = ImageDef::secure_exe();
 
 bind_interrupts!(struct Irqs {
     I2C1_IRQ => I2cInterruptHandler<I2C1>;
@@ -44,7 +55,6 @@ pub static PICOTOOL_ENTRIES: [embassy_rp::binary_info::EntryAddr; 4] = [
     embassy_rp::binary_info::rp_program_build_attribute!(),
 ];
 
-// Shared I2C bus type - exported for tasks
 pub type I2cBus = Mutex<CriticalSectionRawMutex, i2c::I2c<'static, I2C1, i2c::Async>>;
 static I2C_BUS: StaticCell<I2cBus> = StaticCell::new();
 
@@ -55,22 +65,25 @@ async fn main(spawner: Spawner) {
 
     // === USB Logger ===
     let driver = Driver::new(p.USB, Irqs);
-    spawner.spawn(logger::logger_task(driver).unwrap());
+    spawner.spawn(logger::logger_task(driver)).unwrap();
     Timer::after_millis(500).await;
 
-    info!("=== Watering System Starting ===");
+    Timer::after_millis(100).await;
 
-    // === CYW43 WiFi Setup ===
-    let fw = cyw43_firmware::CYW43_43439A0;
-    let clm = cyw43_firmware::CYW43_43439A0_CLM;
+    info!("Loading CYW43 firmware");
+    Timer::after_millis(100).await;
+    let fw = include_bytes!("../firmware/43439A0.bin");
+    let clm = include_bytes!("../firmware/43439A0_clm.bin");
 
+    info!("Setting up PIO SPI");
+    Timer::after_millis(100).await;
     let pwr = Output::new(p.PIN_23, Level::Low);
     let cs = Output::new(p.PIN_25, Level::High);
     let mut pio = Pio::new(p.PIO0, Irqs);
     let spi = PioSpi::new(
         &mut pio.common,
         pio.sm0,
-        RM2_CLOCK_DIVIDER,
+        PICO2W_CLOCK_DIVIDER,
         pio.irq0,
         cs,
         p.PIN_24,
@@ -78,18 +91,22 @@ async fn main(spawner: Spawner) {
         p.DMA_CH0,
     );
 
+    info!("Initializing CYW43");
     static CYW43_STATE: StaticCell<cyw43::State> = StaticCell::new();
     let state = CYW43_STATE.init(cyw43::State::new());
     let (net_device, mut control, runner) = cyw43::new(state, pwr, spi, fw).await;
+    info!("CYW43 initialized!");
 
-    spawner.spawn(network::cyw43_task(runner).unwrap());
+    spawner.spawn(network::cyw43_task(runner)).unwrap();
 
+    info!("Loading CLM");
     control.init(clm).await;
+    info!("CLM loaded!");
+
     control
         .set_power_management(cyw43::PowerManagementMode::PowerSave)
         .await;
 
-    // === Network Stack ===
     let config = Config::dhcpv4(Default::default());
     let seed = rng.next_u64();
 
@@ -101,9 +118,18 @@ async fn main(spawner: Spawner) {
         seed,
     );
 
-    spawner.spawn(network::net_task(net_runner).unwrap());
+    spawner.spawn(network::net_task(net_runner)).unwrap();
 
-    // === Connect to WiFi ===
+    let sda = p.PIN_26;
+    let scl = p.PIN_27;
+    let i2c = i2c::I2c::new_async(p.I2C1, scl, sda, Irqs, I2cConfig::default());
+    let i2c_bus = I2C_BUS.init(Mutex::new(i2c));
+
+    info!("I2C bus initialized on GP26/GP27");
+
+    spawner.spawn(display::display_task(i2c_bus)).unwrap();
+    spawner.spawn(sensor::sensor_task(i2c_bus)).unwrap();
+
     info!("Connecting to WiFi...");
     while let Err(err) = control
         .join(WIFI_NETWORK, JoinOptions::new(WIFI_PASSWORD.as_bytes()))
@@ -112,20 +138,10 @@ async fn main(spawner: Spawner) {
         info!("WiFi join failed: {:?}", err);
         Timer::after_secs(1).await;
     }
+    info!("WiFi connected!");
 
-    spawner.spawn(network::http_task(stack, seed).unwrap());
-
-    // === I2C Bus Setup ===
-    let sda = p.PIN_26;
-    let scl = p.PIN_27;
-    let i2c = i2c::I2c::new_async(p.I2C1, scl, sda, Irqs, I2cConfig::default());
-    let i2c_bus = I2C_BUS.init(Mutex::new(i2c));
-
-    info!("I2C bus initialized on GP26/GP27");
-
-    // === Spawn Tasks ===
-    spawner.spawn(display::display_task(i2c_bus).unwrap());
-    spawner.spawn(sensor::sensor_task(i2c_bus).unwrap());
+    spawner.spawn(network::http_task(stack, seed)).unwrap();
+    spawner.spawn(network::poll_task()).unwrap();
 
     info!("All tasks spawned");
 }

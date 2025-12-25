@@ -3,10 +3,10 @@ use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
 use embassy_time::Timer;
 use log::info;
 
-use crate::channels::SENSOR_CHANNEL;
-use crate::config::SENSOR_INTERVAL_MS;
-use crate::types::SensorData;
 use crate::I2cBus;
+use crate::channels::{HTTP_CHANNEL, SENSOR_CHANNEL};
+use crate::config::SENSOR_INTERVAL_MS;
+use crate::types::{HttpRequest, SensorData};
 
 #[embassy_executor::task]
 pub async fn sensor_task(i2c_bus: &'static I2cBus) {
@@ -53,16 +53,19 @@ pub async fn sensor_task(i2c_bus: &'static I2cBus) {
                     temperature: t,
                     humidity: h,
                     pressure: p / 100.0,
+                    soil_moisture: 0.0, // TODO: read from soil sensor
+                    water_level: 0.0,   // TODO: read from ultrasonic
                 };
 
                 info!(
                     "T: {}C, H: {}%, P: {}hPa",
-                    data.temperature as i32,
-                    data.humidity as i32,
-                    data.pressure as i32
+                    data.temperature as i32, data.humidity as i32, data.pressure as i32
                 );
 
                 SENSOR_CHANNEL.try_send(data).ok();
+                HTTP_CHANNEL
+                    .try_send(HttpRequest::PostSensorData(data))
+                    .ok();
             }
             _ => {
                 info!("BME280 read error");
