@@ -1,0 +1,55 @@
+[package]
+name = "watering-embassy"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+embassy-executor = { git = "https://github.com/embassy-rs/embassy", features = ["arch-cortex-m", "executor-thread", "defmt"] }
+embassy-time = { git = "https://github.com/embassy-rs/embassy", features = ["defmt", "defmt-timestamp-uptime"] }
+embassy-rp = { git = "https://github.com/embassy-rs/embassy", features = ["defmt", "unstable-pac", "time-driver", "critical-section-impl", "rp235xa", "binary-info"] }
+embassy-net = { git = "https://github.com/embassy-rs/embassy", features = ["defmt", "tcp", "udp", "dns", "dhcpv4"] }
+embassy-futures = { git = "https://github.com/embassy-rs/embassy" }
+embassy-sync = { git = "https://github.com/embassy-rs/embassy" }
+embassy-embedded-hal = { git = "https://github.com/embassy-rs/embassy" }
+embassy-usb = { git = "https://github.com/embassy-rs/embassy", features = ["defmt"] }
+embassy-usb-logger = { git = "https://github.com/embassy-rs/embassy" }
+cyw43 = { version = "0.6.0", git = "https://github.com/embassy-rs/embassy", features = ["defmt", "firmware-logs"] }
+cyw43-pio = { version = "0.9.0", git = "https://github.com/embassy-rs/embassy", features = ["defmt"] }
+log = "0.4"
+reqwless = { git = "https://github.com/drogue-iot/reqwless", rev = "68f703dfc16e6f7f964b7238c922c0d433118872", features = ["defmt", "embedded-tls"] }
+serde = { version = "1.0.203", default-features = false, features = ["derive"] }
+serde-json-core = "0.5.1"
+
+defmt = "1.0.1"
+defmt-rtt = "1.0.0"
+panic-probe = { version = "1.0.0", features = ["print-defmt"] }
+
+cortex-m = { version = "0.7.6", features = ["inline-asm"] }
+cortex-m-rt = "0.7.0"
+critical-section = "1.1"
+
+static_cell = "2.1"
+portable-atomic = { version = "1.5", features = ["critical-section"] }
+fixed = "1.23.1"
+
+# OLED display
+ssd1306 = { version = "0.10", features = ["async"] }
+embedded-graphics = "0.8"
+embedded-hal-async = "1.0"
+
+# BME280 sensor
+bme280-rs = "0.2"
+
+# Utilities
+heapless = "0.8"
+cyw43-firmware = { version = "0.1.0", features = ["wifi"]}
+
+[profile.release]
+debug = 2
+lto = true
+opt-level = "s"
+
+[profile.dev]
+debug = 2
+lto = true
+opt-level = "z"
