@@ -18,10 +18,11 @@ const PICO2W_CLOCK_DIVIDER: FixedU32<U8> = FixedU32::from_bits(0x0300);
 
 use embassy_executor::Spawner;
 use embassy_net::{Config, StackResources};
+use embassy_rp::adc::{Adc, Channel, InterruptHandler as AdcInterruptHandler};
 use embassy_rp::bind_interrupts;
 use embassy_rp::block::ImageDef;
 use embassy_rp::clocks::RoscRng;
-use embassy_rp::gpio::{Level, Output};
+use embassy_rp::gpio::{Input, Level, Output};
 use embassy_rp::i2c::{self, Config as I2cConfig, InterruptHandler as I2cInterruptHandler};
 use embassy_rp::peripherals::{I2C1, PIO0, USB};
 use embassy_rp::pio::{InterruptHandler as PioInterruptHandler, Pio};
@@ -44,6 +45,7 @@ bind_interrupts!(struct Irqs {
     I2C1_IRQ => I2cInterruptHandler<I2C1>;
     USBCTRL_IRQ => UsbInterruptHandler<USB>;
     PIO0_IRQ_0 => PioInterruptHandler<PIO0>;
+    ADC_IRQ_FIFO => AdcInterruptHandler;
 });
 
 #[unsafe(link_section = ".bi_entries")]
@@ -91,6 +93,14 @@ async fn main(spawner: Spawner) {
         p.DMA_CH0,
     );
 
+    info!("Initializing ADC");
+    let adc = Adc::new(p.ADC, Irqs, embassy_rp::adc::Config::default());
+    let soil_pin = Channel::new_pin(p.PIN_28, embassy_rp::gpio::Pull::None);
+
+    info!("Initializing sonar");
+    let sonar_trigger = Output::new(p.PIN_16, Level::Low);
+    let sonar_echo = Input::new(p.PIN_17, embassy_rp::gpio::Pull::None);
+
     info!("Initializing CYW43");
     static CYW43_STATE: StaticCell<cyw43::State> = StaticCell::new();
     let state = CYW43_STATE.init(cyw43::State::new());
@@ -128,7 +138,15 @@ async fn main(spawner: Spawner) {
     info!("I2C bus initialized on GP26/GP27");
 
     spawner.spawn(display::display_task(i2c_bus)).unwrap();
-    spawner.spawn(sensor::sensor_task(i2c_bus)).unwrap();
+    spawner
+        .spawn(sensor::sensor_task(
+            i2c_bus,
+            adc,
+            soil_pin,
+            sonar_trigger,
+            sonar_echo,
+        ))
+        .unwrap();
 
     info!("Connecting to WiFi...");
     while let Err(err) = control

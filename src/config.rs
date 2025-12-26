@@ -1,4 +1,4 @@
-pub const SENSOR_INTERVAL_MS: u64 = 3 * 60 * 1000; // 3 minutes
+pub const SENSOR_INTERVAL_MS: u64 = 1 * 60 * 1000; // 1 minutes
 pub const POLL_INTERVAL_SECS: u64 = 600;
 
 pub const WIFI_NETWORK: &str = "";
