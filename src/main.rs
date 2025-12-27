@@ -35,7 +35,7 @@ use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
 
 use config::{WIFI_NETWORK, WIFI_PASSWORD};
-use tasks::{display, logger, network, sensor};
+use tasks::{display, logger, network, pump, sensor};
 
 #[unsafe(link_section = ".start_block")]
 #[used]
@@ -101,6 +101,9 @@ async fn main(spawner: Spawner) {
     let sonar_trigger = Output::new(p.PIN_16, Level::Low);
     let sonar_echo = Input::new(p.PIN_17, embassy_rp::gpio::Pull::None);
 
+    info!("Initializing pump");
+    let pump_pin = Output::new(p.PIN_15, Level::Low);
+
     info!("Initializing CYW43");
     static CYW43_STATE: StaticCell<cyw43::State> = StaticCell::new();
     let state = CYW43_STATE.init(cyw43::State::new());
@@ -138,6 +141,7 @@ async fn main(spawner: Spawner) {
     info!("I2C bus initialized on GP26/GP27");
 
     spawner.spawn(display::display_task(i2c_bus)).unwrap();
+    spawner.spawn(pump::pump_task(pump_pin)).unwrap();
     spawner
         .spawn(sensor::sensor_task(
             i2c_bus,

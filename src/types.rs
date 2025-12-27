@@ -16,3 +16,14 @@ pub enum HttpRequest {
     SendAlert { message: String<64> },
     PollTasks,
 }
+
+#[derive(Clone, Copy)]
+pub struct PumpCommand {
+    pub duration_secs: u16,
+}
+
+#[derive(Clone, Copy, Default, Deserialize)]
+pub struct TasksResponse {
+    #[serde(default)]
+    pub pump_duration: u16, // 0 = no action, >0 = run pump for N seconds
+}

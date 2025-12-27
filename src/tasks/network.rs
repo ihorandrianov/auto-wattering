@@ -12,9 +12,9 @@ use reqwless::headers::ContentType;
 use reqwless::request::{Method, RequestBuilder};
 use static_cell::StaticCell;
 
-use crate::channels::HTTP_CHANNEL;
+use crate::channels::{HTTP_CHANNEL, PUMP_CHANNEL};
 use crate::config::{API_KEY, POLL_INTERVAL_SECS, SENSOR_ENDPOINT, SERVER_URL, TASKS_ENDPOINT};
-use crate::types::HttpRequest;
+use crate::types::{HttpRequest, PumpCommand, TasksResponse};
 
 pub type Cyw43Runner = cyw43::Runner<'static, Output<'static>, PioSpi<'static, PIO0, 0, DMA_CH0>>;
 
@@ -147,8 +147,29 @@ pub async fn http_task(stack: embassy_net::Stack<'static>, seed: u64) {
                 {
                     Ok(response) => {
                         info!("Tasks response: {}", response.status.0);
-                        // TODO: Parse response body and dispatch tasks
-                        let _ = response.body().read_to_end().await;
+
+                        if response.status.0 == 200 {
+                            let mut body_buf = [0u8; 256];
+                            match response.body().reader().read_to_end(&mut body_buf).await {
+                                Ok(len) => {
+                                    if let Ok((tasks, _)) =
+                                        serde_json_core::from_slice::<TasksResponse>(&body_buf[..len])
+                                    {
+                                        if tasks.pump_duration > 0 {
+                                            info!("Pump command received: {} secs", tasks.pump_duration);
+                                            PUMP_CHANNEL
+                                                .try_send(PumpCommand {
+                                                    duration_secs: tasks.pump_duration,
+                                                })
+                                                .ok();
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    error!("Failed to read body: {:?}", e);
+                                }
+                            }
+                        }
                     }
                     Err(e) => {
                         error!("Poll tasks failed: {:?}", e);
